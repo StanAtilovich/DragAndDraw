@@ -10,6 +10,8 @@ import android.util.AttributeSet
 import android.util.Log
 import android.view.MotionEvent
 import android.view.View
+import kotlin.math.cos
+import kotlin.math.sin
 
 
 private const val TAG = "BoxDrawingView"
@@ -27,35 +29,74 @@ class BoxDrawingView(
         color = 0xfff8efe0.toInt()
     }
 
+    private var pointer1Id: Int? = null
+    private var pointer2Id: Int? = null
+    private var initialAngle: Float = 0f
+
+
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        val current = PointF(event.x, event.y)
-        var action = ""
-        when (event.action) {
+        when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
-                action = "ACTION_DOWN"
-                currentBox = Box(current).also {
+                currentBox = Box(PointF(event.x, event.y)).also {
                     boxes.add(it)
                 }
+                pointer1Id = event.getPointerId(0)
             }
-
+            MotionEvent.ACTION_POINTER_DOWN -> {
+                if (event.pointerCount >= 2) {
+                    pointer2Id = event.getPointerId(1)
+                    initialAngle = calculateAngle(event)
+                }
+            }
             MotionEvent.ACTION_MOVE -> {
-                action = "ACTION_MOVE"
-                updateCurrentBox(current)
+                if (event.pointerCount == 2) {
+                    val angle = calculateAngle(event)
+                    currentBox?.let { box ->
+                        box.end?.let { endPoint ->
+                            val center = PointF((box.start.x + endPoint.x) / 2, (box.start.y + endPoint.y) / 2)
+                            val newAngle = angle - initialAngle
+                            rotateBox(box, center, newAngle)
+                            invalidate()
+                        }
+                    }
+                } else {
+                    updateCurrentBox(PointF(event.x, event.y))
+                }
             }
-
-            MotionEvent.ACTION_UP -> {
-                action = "ACTION_UP"
-                updateCurrentBox(current)
-                currentBox = null
-            }
-
-            MotionEvent.ACTION_CANCEL -> {
-                action = "ACTION_CANCEL"
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
+                pointer1Id = null
+                pointer2Id = null
+                currentBox?.let { updateCurrentBox(PointF(event.x, event.y)) }
                 currentBox = null
             }
         }
-        Log.i(TAG, "$action at x=${current.x}, y=${current.y}")
         return true
+    }
+
+    private fun calculateAngle(event: MotionEvent): Float {
+        val x1 = event.getX(event.findPointerIndex(pointer1Id ?: 0))
+        val y1 = event.getY(event.findPointerIndex(pointer1Id ?: 0))
+        val x2 = event.getX(event.findPointerIndex(pointer2Id ?: 1))
+        val y2 = event.getY(event.findPointerIndex(pointer2Id ?: 1))
+
+        return Math.toDegrees(Math.atan2((y2 - y1).toDouble(), (x2 - x1).toDouble())).toFloat()
+    }
+
+    private fun rotateBox(box: Box, center: PointF, angle: Float) {
+        val start = box.start
+        val end = box.end
+        if (start != null && end != null) {
+            val newStart = rotatePoint(start, center, angle)
+            val newEnd = rotatePoint(end, center, angle)
+            box.start = newStart
+            box.end = newEnd
+        }
+    }
+
+    private fun rotatePoint(point: PointF, center: PointF, angle: Float): PointF {
+        val newX = center.x + (point.x - center.x) * cos(angle) - (point.y - center.y) * sin(angle)
+        val newY = center.y + (point.x - center.x) * sin(angle) + (point.y - center.y) * cos(angle)
+        return PointF(newX.toFloat(), newY.toFloat())
     }
 
     private fun updateCurrentBox(current: PointF) {

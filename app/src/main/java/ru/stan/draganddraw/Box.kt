@@ -4,7 +4,7 @@ import android.graphics.PointF
 import android.os.Parcel
 import android.os.Parcelable
 
-data class Box(val start: PointF, var end: PointF? = null) : Parcelable {
+data class Box(var start: PointF, var end: PointF? = null) : Parcelable {
     constructor(parcel: Parcel) : this(
         parcel.readParcelable(PointF::class.java.classLoader)!!,
         parcel.readParcelable(PointF::class.java.classLoader)
@@ -21,7 +21,6 @@ data class Box(val start: PointF, var end: PointF? = null) : Parcelable {
         override fun createFromParcel(parcel: Parcel) = Box(parcel)
         override fun newArray(size: Int) = arrayOfNulls<Box?>(size)
     }
-    //var end: PointF = start
 
     val left: Float?
         get() = end?.let { Math.min(start.x, it.x) }
